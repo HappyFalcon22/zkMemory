@@ -15,6 +15,7 @@ struct UntypedValue {
     bits: u64,
 }
 
+/// Implement a Cell to be a memory unit rather than a byte, which depends on the running machine
 struct Cell {
     cell: Vec<u8>,
     size: u64,
@@ -177,8 +178,9 @@ fn main() {
 
     // Print the memory trace
     let mm_trace = memory.raw.memory_trace;
+    println!("(Address\t Time log\t Instruction\t Value)");
     for i in &mm_trace {
-        println!("({}, {}, {:?}, {:#0x})", i.time_log, i.address.bits, i.action, i.value.bits);
+        println!("({:#0x}\t\t {}\t {:?}\t {:#0x})", i.address.bits, i.time_log, i.action, i.value.bits);
     };
     
 }
