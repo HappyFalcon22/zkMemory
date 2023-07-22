@@ -14,6 +14,11 @@ struct UntypedValue {
     bits: u64,
 }
 
+struct Cell {
+    cell: Vec<u8>,
+    size: u64,
+}
+
 /// In WebAssembly there are some certain way to interactive with the memory
 /// Following this `enum` it defined three possible actions
 #[derive(Clone, Debug)]
@@ -84,6 +89,7 @@ impl <'a>MemoryInterface<'a> for Memory<'a> {
         // Check if the address is within the valid memory range
         let memory_size = self.raw.memory_raw.len() as u64;
         if (address >= memory_size) || (address % CELL_SIZE != 0) {
+            self.time_count += 1;
             return Err(Error); // Return an error if the address is out of range
         }
         // Perform the read operation
@@ -112,13 +118,13 @@ impl <'a>MemoryInterface<'a> for Memory<'a> {
     fn write(&mut self, address: u64, chunk: u64) -> Result<MemoryCommitment, Error> {
         // Check if the address is within the valid memory range
         let memory_size = self.raw.memory_raw.len() as u64;
-        if address + CELL_SIZE >= memory_size {
+        if address + CELL_SIZE >= memory_size || address % CELL_SIZE != 0 {
+            self.time_count += 1;
             return Err(Error); // Return an error if the address is out of range
         }
         let mut temp = chunk;
         // Perform the write operation by updating the memory
         for i in (address..address+CELL_SIZE).rev() {
-            println!("{}", i);
             self.raw.memory_raw[i as usize] = (temp % 0x100u64) as u8;
             temp = temp / 0x100u64;
         }
@@ -140,8 +146,7 @@ impl <'a>MemoryInterface<'a> for Memory<'a> {
     }
 
     fn extract_memory_trace(&mut self) -> Result<Vec<MemoryTrace>, Error> {
-        let trace = self.raw.memory_trace;
-        Ok(trace)
+        Err(Error)
     }
 }
 
@@ -150,30 +155,25 @@ fn main() {
     // Create a raw memory instance, for example:
     let raw_memory = MemoryRaw {
         ptr: &UntypedValue { bits: 0 },
-        memory_raw: vec![109, 0, 0, 0, 0, 0, 0, 15, 19, 203, 0, 178, 0, 0, 1, 1], // Initialize memory_raw with some initial data
+        memory_raw: vec![0; 64], // Initialize memory_raw with some initial data
         memory_trace: Vec::new(),
     };
 
     let mut memory = Memory::new(raw_memory);
-    let mut temp = memory.read(8);
-    match temp {
-        Ok(v) => println!("{}",format!("{:#0x}", v.bits)),
-        Err(_) => println!("Huh ?"),     
-    }
-    temp = memory.write(0, 0x123456789abcdef0);
-    match temp {
-        Ok(v) => println!("{:?}", v.bits),
-        Err(_) => (),     
-    }
-    println!("{:?}", memory.raw.memory_raw);
-    temp = memory.read(0);
-    match temp {
-        Ok(v) => println!("{:?}", v.bits),
-        Err(_) => println!("Huh ?"),     
-    }
+    let mut temp = Err(Error);
+    temp = memory.write(8, 0xffaabbcc11002299);
+    temp = memory.write(32, 0x123456789abcdef0);
+    temp = memory.write(48, 0x9301728932823444);
+    temp = memory.read(30);
+    temp = memory.read(31);
+    temp = memory.read(33);
+    temp = memory.read(32);
 
+    // Print the memory for debug
+    println!("{:0x?}", memory.raw.memory_raw);
+
+    // Print the memory trace
     let mm_trace = memory.raw.memory_trace;
-
     for i in &mm_trace {
         println!("({}, {}, {:?}, {:#0x})", i.time_log, i.address.bits, i.action, i.value.bits);
     };
