@@ -3,6 +3,7 @@
 #![allow(non_snake_case)]
 #![allow(special_module_name)]
 #![allow(unused_mut)]
+#![allow(unused_assignments)]
 
 use core::fmt::Error;
 /// Each cell has some multiplier of bits, like Window(x64) for example
@@ -21,7 +22,7 @@ struct Cell {
 
 /// In WebAssembly there are some certain way to interactive with the memory
 /// Following this `enum` it defined three possible actions
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 enum MemoryAction {
     Init,
     Read,
@@ -62,10 +63,10 @@ struct MemoryCommitment {
 /// The interface for zkMemory
 trait MemoryInterface<'a> {
     fn new(raw_memory: MemoryRaw<'a>) -> Self;
-    fn init(&mut self, address: u64) -> Result<MemoryCommitment, Error>;
+    // fn init(&mut self, address: u64) -> Result<MemoryCommitment, Error>;
     fn read(&mut self, address: u64) -> Result<MemoryCommitment, Error>;
     fn write(&mut self, address: u64, chunk: u64) -> Result<MemoryCommitment, Error>;
-    fn extract_memory_trace(&mut self) -> Result<Vec<MemoryTrace>, Error>;
+    // fn extract_memory_trace(&mut self) -> Result<Vec<MemoryTrace>, Error>;
 }
 
 // impl <'a>Memory<'a> {
@@ -73,9 +74,9 @@ trait MemoryInterface<'a> {
 // }
 
 impl <'a>MemoryInterface<'a> for Memory<'a> {
-    fn init(&mut self, address: u64) -> Result<MemoryCommitment, Error> {
-        Err(Error)
-    }
+    // fn init(&mut self, address: u64) -> Result<MemoryCommitment, Error> {
+    //     Err(Error)
+    // }
 
     fn new(raw_memory: MemoryRaw<'a>) -> Memory {
         Memory { 
@@ -88,9 +89,10 @@ impl <'a>MemoryInterface<'a> for Memory<'a> {
     fn read(&mut self, address: u64) -> Result<MemoryCommitment, Error> {
         // Check if the address is within the valid memory range
         let memory_size = self.raw.memory_raw.len() as u64;
+        // Return an error if the address is invalid
         if (address >= memory_size) || (address % CELL_SIZE != 0) {
             self.time_count += 1;
-            return Err(Error); // Return an error if the address is out of range
+            return Err(Error); 
         }
         // Perform the read operation
         let mut data = self.raw.memory_raw[address as usize] as u64;
@@ -145,9 +147,9 @@ impl <'a>MemoryInterface<'a> for Memory<'a> {
         Ok(MemoryCommitment { bits: chunk })
     }
 
-    fn extract_memory_trace(&mut self) -> Result<Vec<MemoryTrace>, Error> {
-        Err(Error)
-    }
+    // fn extract_memory_trace(&mut self) -> Result<Vec<MemoryTrace>, Error> {
+    //     Ok(self.raw.memory_trace)
+    // }
 }
 
 
@@ -165,6 +167,7 @@ fn main() {
     temp = memory.write(32, 0x123456789abcdef0);
     temp = memory.write(48, 0x9301728932823444);
     temp = memory.read(30);
+    temp = memory.write(16, 0x1809304287889100);
     temp = memory.read(31);
     temp = memory.read(33);
     temp = memory.read(32);
