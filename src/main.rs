@@ -121,9 +121,45 @@ impl <'a>MemoryInterface<'a> for Memory<'a> {
     fn write(&mut self, address: u64, chunk: u64) -> Result<MemoryCommitment, Error> {
         // Check if the address is within the valid memory range
         let memory_size = self.raw.memory_raw.len() as u64;
-        if address + CELL_SIZE >= memory_size || address % CELL_SIZE != 0 {
+
+        if address + CELL_SIZE >= memory_size {
+            return Err(Error);
+        }
+
+        if address % CELL_SIZE != 0 {
+            let r = address % CELL_SIZE;
+            let low = address - r;
+            let high = low + CELL_SIZE;
+            let low_chunk = chunk / (1 << (8 * r));
+            let high_chunk = chunk % (1 << (8 * r));
+            let mut temp = chunk;
+            // Perform the write operation by updating the memory
+            for i in (address..address+CELL_SIZE).rev() {
+                self.raw.memory_raw[i as usize] = (temp % 0x100u64) as u8;
+                temp = temp / 0x100u64;
+            }
+
+            // Create memory trace for lower cell
+            let trace = MemoryTrace {
+                time_log: self.time_count,
+                address: UntypedValue { bits: (low) },
+                action: MemoryAction::Write,
+                value: UntypedValue { bits: low_chunk },
+            };
+            self.raw.memory_trace.push(trace);
             self.time_count += 1;
-            return Err(Error); // Return an error if the address is out of range
+
+            // Create memory trace for higher cell
+            let trace = MemoryTrace {
+                time_log: self.time_count,
+                address: UntypedValue { bits: (high) },
+                action: MemoryAction::Write,
+                value: UntypedValue { bits: high_chunk << (8 * r) },
+            };
+            self.raw.memory_trace.push(trace);
+            self.time_count += 1;
+
+            return Ok(MemoryCommitment { bits: chunk });
         }
         let mut temp = chunk;
         // Perform the write operation by updating the memory
@@ -145,7 +181,7 @@ impl <'a>MemoryInterface<'a> for Memory<'a> {
         self.time_count += 1;
 
         // Return the MemoryCommitment with the updated data
-        Ok(MemoryCommitment { bits: chunk })
+        return Ok(MemoryCommitment { bits: chunk });
     }
 
     // fn extract_memory_trace(&mut self) -> Result<Vec<MemoryTrace>, Error> {
@@ -172,15 +208,16 @@ fn main() {
     temp = memory.read(31);
     temp = memory.read(33);
     temp = memory.read(32);
+    temp = memory.write(13, 0xaaaabbbbccccdddd);
 
     // Print the memory for debug
     println!("{:0x?}", memory.raw.memory_raw);
 
     // Print the memory trace
     let mm_trace = memory.raw.memory_trace;
-    println!("(Address\t Time log\t Instruction\t Value)");
+    println!("Address\t\t\t Time log\t Instruction\t Value");
     for i in &mm_trace {
-        println!("({:#0x}\t\t {}\t {:?}\t {:#0x})", i.address.bits, i.time_log, i.action, i.value.bits);
+        println!("(0x{:016x}\t {}\t\t {:?}\t\t 0x{:016x})", i.address.bits, i.time_log, i.action, i.value.bits);
     };
     
 }
